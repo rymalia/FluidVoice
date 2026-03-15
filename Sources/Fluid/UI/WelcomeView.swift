@@ -1129,8 +1129,8 @@ struct OnboardingFlowView: View {
                                 .foregroundStyle(.secondary)
 
                             Button(self.asr.isRunning ? "Stop Recording" : "Start Recording") {
-                            self.togglePlaygroundRecording()
-                        }
+                                self.togglePlaygroundRecording()
+                            }
                             .buttonStyle(PremiumButtonStyle(isRecording: self.asr.isRunning))
                             .disabled(self.asr.micStatus != .authorized)
                         }
@@ -1366,7 +1366,7 @@ struct OnboardingFlowView: View {
             self.settings.selectedSpeechModel = model
             self.asr.resetTranscriptionProvider()
         }
-        if preserveManualChoice && self.preferredLanguageChoice == .other {
+        if preserveManualChoice, self.preferredLanguageChoice == .other {
             return
         }
         self.syncPreferredLanguageChoiceWithSelectedModel()
@@ -1407,7 +1407,6 @@ struct OnboardingFlowView: View {
                             .background(Capsule().fill(self.theme.palette.accent.opacity(0.18)))
                             .foregroundStyle(self.theme.palette.accent)
                     }
-
                 }
 
                 Text(option.subtitle)
