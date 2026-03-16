@@ -180,8 +180,10 @@ final class TypingService {
             }
 
             self.log("[TypingService] Starting async text insertion process")
-            // Longer delay to ensure target app is ready and focused
-            usleep(200_000) // 200ms delay - more reliable for app switching
+            if self.textInsertionMode != .reliablePaste {
+                // Direct typing paths are more timing-sensitive after app activation.
+                usleep(200_000)
+            }
             self.log("[TypingService] Delay completed, calling insertTextInstantly")
             self.insertTextInstantly(text, preferredTargetPID: preferredTargetPID)
         }
