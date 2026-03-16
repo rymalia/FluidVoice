@@ -45,7 +45,7 @@ final class TypingService {
     static func captureSystemFocusedPID() -> pid_t? {
         // Accessibility is required to query system-focused AX element.
         guard AXIsProcessTrusted() else {
-            Self.storeFocusSnapshot(nil)
+            self.storeFocusSnapshot(nil)
             return nil
         }
 
@@ -84,7 +84,7 @@ final class TypingService {
     @discardableResult
     static func restoreCapturedFocus(in pid: pid_t) -> Bool {
         guard AXIsProcessTrusted() else { return false }
-        guard let snapshot = Self.loadFocusSnapshot(),
+        guard let snapshot = loadFocusSnapshot(),
               snapshot.pid == pid else { return false }
 
         Self.logFocusState("[TypingService] Before restoreCapturedFocus")
@@ -316,13 +316,13 @@ final class TypingService {
     private static let cgEventUnicodeLimit = 200
 
     private static func storeFocusSnapshot(_ snapshot: FocusSnapshot?) {
-        Self.focusSnapshotQueue.sync {
+        self.focusSnapshotQueue.sync {
             Self.focusSnapshot = snapshot
         }
     }
 
     private static func loadFocusSnapshot() -> FocusSnapshot? {
-        Self.focusSnapshotQueue.sync { Self.focusSnapshot }
+        self.focusSnapshotQueue.sync { Self.focusSnapshot }
     }
 
     private static func copyAXElementAttribute(from element: AXUIElement, attribute: CFString) -> AXUIElement? {
@@ -366,8 +366,8 @@ final class TypingService {
     }
 
     private static func logFocusState(_ prefix: String) {
-        guard Self.isLoggingEnabled else { return }
-        DebugLogger.shared.debug("\(prefix) | \(Self.currentFocusDebugDescription())", source: "TypingService")
+        guard self.isLoggingEnabled else { return }
+        DebugLogger.shared.debug("\(prefix) | \(self.currentFocusDebugDescription())", source: "TypingService")
     }
 
     private static func isCurrentlyFocusedElement(_ expectedElement: AXUIElement, expectedPID: pid_t) -> Bool {
