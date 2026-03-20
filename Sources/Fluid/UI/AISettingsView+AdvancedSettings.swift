@@ -691,12 +691,13 @@ extension AIEnhancementSettingsView {
                 Text("Mode")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Picker("Mode", selection: self.$viewModel.draftPromptMode) {
+                Picker("", selection: self.$viewModel.draftPromptMode) {
                     ForEach(SettingsStore.PromptMode.visiblePromptModes) { mode in
                         Text(self.friendlyModeName(mode)).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
                 .disabled(mode.isDefault)
             }
 
