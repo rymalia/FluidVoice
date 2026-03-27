@@ -33,6 +33,7 @@ final class TypingService {
     }
 
     private static let focusSnapshotQueue = DispatchQueue(label: "TypingService.FocusSnapshot")
+    private static let pasteboardRestoreQueue = DispatchQueue(label: "TypingService.PasteboardRestore", qos: .utility)
     private static var focusSnapshot: FocusSnapshot?
 
     private var textInsertionMode: SettingsStore.TextInsertionMode {
@@ -242,7 +243,10 @@ final class TypingService {
             }
 
             self.log("[TypingService] Starting async text insertion process")
-            if self.textInsertionMode != .reliablePaste {
+            if self.textInsertionMode == .reliablePaste {
+                // Reliable Paste still needs a short settle window after focus restoration.
+                usleep(80_000)
+            } else {
                 // Direct typing paths are more timing-sensitive after app activation.
                 usleep(200_000)
             }
@@ -360,6 +364,14 @@ final class TypingService {
     }
 
     private func tryReliablePasteInsertion(_ text: String, preferredTargetPID: pid_t?) -> Bool {
+        if let preferredTargetPID, preferredTargetPID > 0 {
+            self.log("[TypingService] Trying clipboard-to-PID insertion first")
+            if self.insertTextViaClipboardToPid(text, targetPID: preferredTargetPID) {
+                self.log("[TypingService] Reliable Paste dispatched via clipboard-to-PID")
+                return true
+            }
+        }
+
         self.log("[TypingService] Trying global clipboard insertion")
         if self.insertTextViaClipboard(text) {
             self.log("[TypingService] Reliable Paste dispatched via global clipboard paste")
@@ -370,14 +382,6 @@ final class TypingService {
         if self.insertTextViaMenuPaste(text) {
             self.log("[TypingService] Reliable Paste dispatched via menu paste")
             return true
-        }
-
-        if let preferredTargetPID, preferredTargetPID > 0 {
-            self.log("[TypingService] Menu paste failed, trying clipboard-to-PID fallback")
-            if self.insertTextViaClipboardToPid(text, targetPID: preferredTargetPID) {
-                self.log("[TypingService] Reliable Paste dispatched via clipboard-to-PID")
-                return true
-            }
         }
 
         return false
@@ -509,19 +513,28 @@ final class TypingService {
             self.restorePasteboardSnapshot(snapshot, to: pasteboard)
             return false
         }
+        let temporaryChangeCount = pasteboard.changeCount
 
         let actionResult = action()
-        usleep(restoreDelayMicros)
-
-        // Avoid clobbering user clipboard changes that happened after our insertion.
-        if pasteboard.string(forType: .string) == text {
+        guard actionResult else {
             self.restorePasteboardSnapshot(snapshot, to: pasteboard)
-            self.log("[TypingService] Restored previous clipboard snapshot")
-        } else {
-            self.log("[TypingService] Skipped clipboard restore because clipboard changed externally")
+            self.log("[TypingService] Restored previous clipboard snapshot after paste dispatch failure")
+            return false
         }
 
-        return actionResult
+        Self.pasteboardRestoreQueue.asyncAfter(deadline: .now() + .microseconds(Int(restoreDelayMicros))) {
+            let pasteboard = NSPasteboard.general
+
+            // Avoid clobbering user clipboard changes that happened after our insertion.
+            if pasteboard.changeCount == temporaryChangeCount || pasteboard.string(forType: .string) == text {
+                self.restorePasteboardSnapshot(snapshot, to: pasteboard)
+                self.log("[TypingService] Restored previous clipboard snapshot")
+            } else {
+                self.log("[TypingService] Skipped clipboard restore because clipboard changed externally")
+            }
+        }
+
+        return true
     }
 
     /// Clipboard-paste insertion targeted at a specific PID.
@@ -539,7 +552,7 @@ final class TypingService {
             usleep(80_000)
         }
 
-        return self.withTemporaryPasteboardString(text, restoreDelayMicros: 180_000) {
+        return self.withTemporaryPasteboardString(text, restoreDelayMicros: 450_000) {
             let vKey = Self.pasteVirtualKeyCode
             guard let cmdVDown = CGEvent(keyboardEventSource: nil, virtualKey: vKey, keyDown: true),
                   let cmdVUp = CGEvent(keyboardEventSource: nil, virtualKey: vKey, keyDown: false)
@@ -625,7 +638,7 @@ final class TypingService {
     /// More reliable but slightly slower - copies text to clipboard then pastes
     private func insertTextViaClipboard(_ text: String) -> Bool {
         self.log("[TypingService] Starting clipboard-based insertion")
-        return self.withTemporaryPasteboardString(text, restoreDelayMicros: 120_000) {
+        return self.withTemporaryPasteboardString(text, restoreDelayMicros: 450_000) {
             let vKey = Self.pasteVirtualKeyCode
             guard let cmdVDown = CGEvent(keyboardEventSource: nil, virtualKey: vKey, keyDown: true),
                   let cmdVUp = CGEvent(keyboardEventSource: nil, virtualKey: vKey, keyDown: false)
@@ -652,7 +665,7 @@ final class TypingService {
             return false
         }
 
-        return self.withTemporaryPasteboardString(text, restoreDelayMicros: 180_000) {
+        return self.withTemporaryPasteboardString(text, restoreDelayMicros: 450_000) {
             let escapedAppName = appName.replacingOccurrences(of: "\"", with: "\\\"")
             let script = """
             tell application "System Events"
