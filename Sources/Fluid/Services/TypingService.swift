@@ -51,6 +51,7 @@ final class TypingService {
     }
 
     private static let focusSnapshotQueue = DispatchQueue(label: "TypingService.FocusSnapshot")
+    private static let pasteboardSessionSemaphore = DispatchSemaphore(value: 1)
     private static let pasteboardRestoreQueue = DispatchQueue(label: "TypingService.PasteboardRestore", qos: .utility)
     private static var focusSnapshot: FocusSnapshot?
 
@@ -522,6 +523,14 @@ final class TypingService {
         restoreDelayMicros: useconds_t,
         action: () -> Bool
     ) -> Bool {
+        Self.pasteboardSessionSemaphore.wait()
+        var releasesPasteboardSessionOnReturn = true
+        defer {
+            if releasesPasteboardSessionOnReturn {
+                Self.pasteboardSessionSemaphore.signal()
+            }
+        }
+
         let pasteboard = NSPasteboard.general
         let snapshot = self.capturePasteboardSnapshot(pasteboard)
 
@@ -540,7 +549,9 @@ final class TypingService {
             return false
         }
 
+        releasesPasteboardSessionOnReturn = false
         Self.pasteboardRestoreQueue.async {
+            defer { Self.pasteboardSessionSemaphore.signal() }
             _ = self.waitForFocusedTextVerification(
                 from: focusedTextSnapshot,
                 expectedText: text,
