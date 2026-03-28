@@ -2417,83 +2417,6 @@ struct ContentView: View {
     }
 
     @MainActor
-    private func completeOnboardingIfPossible() {
-        guard self.canCompleteOnboarding else { return }
-
-        self.settings.onboardingCompleted = true
-
-        let isOnboarded = self.asr.isAsrReady || self.asr.modelsExistOnDisk
-        self.selectedSidebarItem = isOnboarded ? .preferences : .welcome
-    }
-
-    private func labelFor(status: AVAuthorizationStatus) -> String {
-        switch status {
-        case .authorized: return "Microphone: Authorized"
-        case .denied: return "Microphone: Denied"
-        case .restricted: return "Microphone: Restricted"
-        case .notDetermined: return "Microphone: Not Determined"
-        @unknown default: return "Microphone: Unknown"
-        }
-    }
-
-    private func checkAccessibilityPermissions() -> Bool {
-        return AXIsProcessTrusted()
-    }
-
-    private func openAccessibilitySettings() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        AXIsProcessTrustedWithOptions(options)
-        self.didOpenAccessibilityPane = true
-        UserDefaults.standard.set(true, forKey: self.accessibilityRestartFlagKey)
-    }
-
-    private func restartApp() {
-        let appPath = Bundle.main.bundlePath
-        let process = Process()
-        process.launchPath = "/usr/bin/open"
-        process.arguments = ["-n", appPath]
-        // Clear pending flag and hide prompt before restarting
-        UserDefaults.standard.set(false, forKey: self.accessibilityRestartFlagKey)
-        self.showRestartPrompt = false
-        try? process.run()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            NSApp.terminate(nil)
-        }
-    }
-
-    private func startAccessibilityPolling() {
-        // Don't poll if already enabled or if we've already auto-restarted once
-        guard !self.accessibilityEnabled else { return }
-        guard !UserDefaults.standard.bool(forKey: self.hasAutoRestartedForAccessibilityKey) else { return }
-
-        // Cancel any existing polling task
-        self.accessibilityPollingTask?.cancel()
-
-        // Start background polling
-        self.accessibilityPollingTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // Poll every 2 seconds
-
-                // Check if permission was granted
-                let nowTrusted = AXIsProcessTrusted()
-                if nowTrusted && !self.accessibilityEnabled {
-                    await MainActor.run {
-                        DebugLogger.shared.info("Accessibility permission granted! Auto-restarting app...", source: "ContentView")
-
-                        // Mark that we've auto-restarted to prevent loops
-                        UserDefaults.standard.set(true, forKey: self.hasAutoRestartedForAccessibilityKey)
-
-                        // Give user brief moment to see any UI feedback
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            self.restartApp()
-                        }
-                    }
-                    break // Stop polling after triggering restart
-                }
-            }
-        }
-    }
-
     private func revealAppInFinder() {
         let appPath = Bundle.main.bundlePath
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: appPath)])
@@ -2785,6 +2708,87 @@ struct ContentView: View {
 // SidebarItem enum moved to top of file
 
 // AudioDevice and AudioHardwareObserver moved to Services/AudioDeviceService.swift
+
+// MARK: - ContentView Accessibility & Lifecycle Helpers
+
+extension ContentView {
+    func completeOnboardingIfPossible() {
+        guard self.canCompleteOnboarding else { return }
+
+        self.settings.onboardingCompleted = true
+
+        let isOnboarded = self.asr.isAsrReady || self.asr.modelsExistOnDisk
+        self.selectedSidebarItem = isOnboarded ? .preferences : .welcome
+    }
+
+    func labelFor(status: AVAuthorizationStatus) -> String {
+        switch status {
+        case .authorized: return "Microphone: Authorized"
+        case .denied: return "Microphone: Denied"
+        case .restricted: return "Microphone: Restricted"
+        case .notDetermined: return "Microphone: Not Determined"
+        @unknown default: return "Microphone: Unknown"
+        }
+    }
+
+    func checkAccessibilityPermissions() -> Bool {
+        return AXIsProcessTrusted()
+    }
+
+    func openAccessibilitySettings() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        AXIsProcessTrustedWithOptions(options)
+        self.didOpenAccessibilityPane = true
+        UserDefaults.standard.set(true, forKey: self.accessibilityRestartFlagKey)
+    }
+
+    func restartApp() {
+        let appPath = Bundle.main.bundlePath
+        let process = Process()
+        process.launchPath = "/usr/bin/open"
+        process.arguments = ["-n", appPath]
+        // Clear pending flag and hide prompt before restarting
+        UserDefaults.standard.set(false, forKey: self.accessibilityRestartFlagKey)
+        self.showRestartPrompt = false
+        try? process.run()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            NSApp.terminate(nil)
+        }
+    }
+
+    func startAccessibilityPolling() {
+        // Don't poll if already enabled or if we've already auto-restarted once
+        guard !self.accessibilityEnabled else { return }
+        guard !UserDefaults.standard.bool(forKey: self.hasAutoRestartedForAccessibilityKey) else { return }
+
+        // Cancel any existing polling task
+        self.accessibilityPollingTask?.cancel()
+
+        // Start background polling
+        self.accessibilityPollingTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_000_000_000) // Poll every 2 seconds
+
+                // Check if permission was granted
+                let nowTrusted = AXIsProcessTrusted()
+                if nowTrusted && !self.accessibilityEnabled {
+                    await MainActor.run {
+                        DebugLogger.shared.info("Accessibility permission granted! Auto-restarting app...", source: "ContentView")
+
+                        // Mark that we've auto-restarted to prevent loops
+                        UserDefaults.standard.set(true, forKey: self.hasAutoRestartedForAccessibilityKey)
+
+                        // Give user brief moment to see any UI feedback
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            self.restartApp()
+                        }
+                    }
+                    break // Stop polling after triggering restart
+                }
+            }
+        }
+    }
+}
 
 // MARK: - Card Animation Modifier
 
