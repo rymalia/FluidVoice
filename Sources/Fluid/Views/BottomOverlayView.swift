@@ -1197,6 +1197,7 @@ private struct BottomOverlayModeMenuView: View {
 
 private struct BottomOverlayPromptMenuView: View {
     @ObservedObject private var settings = SettingsStore.shared
+    @ObservedObject private var contentState = NotchContentState.shared
 
     let promptMode: SettingsStore.PromptMode
     let maxWidth: CGFloat
@@ -1236,7 +1237,11 @@ private struct BottomOverlayPromptMenuView: View {
     private func offRow() -> some View {
         let isSelected = self.settings.isDictationPromptOff
         Button(action: {
-            self.settings.setDictationPromptSelection(.off)
+            if self.contentState.isPromptModeActive, self.promptMode.normalized == .dictate {
+                self.contentState.onPromptModeProfileChangeRequested?(nil)
+            } else {
+                self.settings.setDictationPromptSelection(.off)
+            }
             self.restoreTypingTargetApp()
             self.onDismissRequested()
         }) {
@@ -1262,7 +1267,9 @@ private struct BottomOverlayPromptMenuView: View {
     private func defaultRow(selectedID: String?) -> some View {
         let isSelected = !self.settings.isDictationPromptOff && selectedID == nil
         Button(action: {
-            if self.promptMode.normalized == .dictate {
+            if self.contentState.isPromptModeActive, self.promptMode.normalized == .dictate {
+                self.contentState.onPromptModeProfileChangeRequested?(nil)
+            } else if self.promptMode.normalized == .dictate {
                 self.settings.setDictationPromptSelection(.default)
             } else {
                 self.settings.setSelectedPromptID(nil, for: self.promptMode)
@@ -1292,7 +1299,11 @@ private struct BottomOverlayPromptMenuView: View {
     private func profileRow(_ profile: SettingsStore.DictationPromptProfile, selectedID: String?) -> some View {
         let isSelected = selectedID == profile.id
         Button(action: {
-            self.settings.setSelectedPromptID(profile.id, for: self.promptMode)
+            if self.contentState.isPromptModeActive, self.promptMode.normalized == .dictate {
+                self.contentState.onPromptModeProfileChangeRequested?(profile)
+            } else {
+                self.settings.setSelectedPromptID(profile.id, for: self.promptMode)
+            }
             self.restoreTypingTargetApp()
             self.onDismissRequested()
         }) {
