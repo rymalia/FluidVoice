@@ -1167,7 +1167,7 @@ final class SettingsStore: ObservableObject {
     // MARK: - Overlay Position
 
     /// Size options for the recording overlay
-    enum OverlaySize: String, CaseIterable {
+    enum OverlaySize: String, CaseIterable, Codable {
         case small
         case medium
         case large
@@ -1182,7 +1182,7 @@ final class SettingsStore: ObservableObject {
     }
 
     /// Position options for the recording overlay
-    enum OverlayPosition: String, CaseIterable {
+    enum OverlayPosition: String, CaseIterable, Codable {
         case top // Top of screen (notch area or floating)
         case bottom // Bottom of screen
 
@@ -1278,7 +1278,7 @@ final class SettingsStore: ObservableObject {
 
     // MARK: - Preferences Settings
 
-    enum AccentColorOption: String, CaseIterable, Identifiable {
+    enum AccentColorOption: String, CaseIterable, Identifiable, Codable {
         case cyan = "Cyan"
         case green = "Green"
         case blue = "Blue"
@@ -1300,7 +1300,7 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    enum TranscriptionStartSound: String, CaseIterable, Identifiable {
+    enum TranscriptionStartSound: String, CaseIterable, Identifiable, Codable {
         case none
         case fluidSfx1 = "fluid_sfx_1"
         case fluidSfx2 = "fluid_sfx_2"
@@ -1979,6 +1979,140 @@ final class SettingsStore: ObservableObject {
             objectWillChange.send()
             self.defaults.set(newValue, forKey: Keys.saveTranscriptionHistory)
         }
+    }
+
+    func makeBackupPayload() -> SettingsBackupPayload {
+        SettingsBackupPayload(
+            selectedProviderID: self.selectedProviderID,
+            selectedModelByProvider: self.selectedModelByProvider,
+            savedProviders: self.savedProviders,
+            modelReasoningConfigs: self.modelReasoningConfigs,
+            selectedSpeechModel: self.selectedSpeechModel,
+            selectedCohereLanguage: self.selectedCohereLanguage,
+            hotkeyShortcut: self.hotkeyShortcut,
+            promptModeHotkeyShortcut: self.promptModeHotkeyShortcut,
+            promptModeShortcutEnabled: self.promptModeShortcutEnabled,
+            promptModeSelectedPromptID: self.promptModeSelectedPromptID,
+            commandModeHotkeyShortcut: self.commandModeHotkeyShortcut,
+            commandModeShortcutEnabled: self.commandModeShortcutEnabled,
+            commandModeSelectedModel: self.commandModeSelectedModel,
+            commandModeSelectedProviderID: self.commandModeSelectedProviderID,
+            commandModeConfirmBeforeExecute: self.commandModeConfirmBeforeExecute,
+            commandModeLinkedToGlobal: self.commandModeLinkedToGlobal,
+            rewriteModeHotkeyShortcut: self.rewriteModeHotkeyShortcut,
+            rewriteModeShortcutEnabled: self.rewriteModeShortcutEnabled,
+            rewriteModeSelectedModel: self.rewriteModeSelectedModel,
+            rewriteModeSelectedProviderID: self.rewriteModeSelectedProviderID,
+            rewriteModeLinkedToGlobal: self.rewriteModeLinkedToGlobal,
+            cancelRecordingHotkeyShortcut: self.cancelRecordingHotkeyShortcut,
+            showThinkingTokens: self.showThinkingTokens,
+            hideFromDockAndAppSwitcher: self.hideFromDockAndAppSwitcher,
+            accentColorOption: self.accentColorOption,
+            transcriptionStartSound: self.transcriptionStartSound,
+            transcriptionSoundVolume: self.transcriptionSoundVolume,
+            transcriptionSoundIndependentVolume: self.transcriptionSoundIndependentVolume,
+            autoUpdateCheckEnabled: self.autoUpdateCheckEnabled,
+            betaReleasesEnabled: self.betaReleasesEnabled,
+            enableDebugLogs: self.enableDebugLogs,
+            shareAnonymousAnalytics: self.shareAnonymousAnalytics,
+            pressAndHoldMode: self.pressAndHoldMode,
+            enableStreamingPreview: self.enableStreamingPreview,
+            enableAIStreaming: self.enableAIStreaming,
+            copyTranscriptionToClipboard: self.copyTranscriptionToClipboard,
+            textInsertionMode: self.textInsertionMode,
+            preferredInputDeviceUID: self.preferredInputDeviceUID,
+            preferredOutputDeviceUID: self.preferredOutputDeviceUID,
+            visualizerNoiseThreshold: self.visualizerNoiseThreshold,
+            overlayPosition: self.overlayPosition,
+            overlayBottomOffset: self.overlayBottomOffset,
+            overlaySize: self.overlaySize,
+            transcriptionPreviewCharLimit: self.transcriptionPreviewCharLimit,
+            userTypingWPM: self.userTypingWPM,
+            saveTranscriptionHistory: self.saveTranscriptionHistory,
+            weekendsDontBreakStreak: self.weekendsDontBreakStreak,
+            fillerWords: self.fillerWords,
+            removeFillerWordsEnabled: self.removeFillerWordsEnabled,
+            gaavModeEnabled: self.gaavModeEnabled,
+            pauseMediaDuringTranscription: self.pauseMediaDuringTranscription,
+            vocabularyBoostingEnabled: self.vocabularyBoostingEnabled,
+            customDictionaryEntries: self.customDictionaryEntries,
+            selectedDictationPromptID: self.selectedDictationPromptID,
+            selectedEditPromptID: self.selectedEditPromptID,
+            defaultDictationPromptOverride: self.defaultDictationPromptOverride,
+            defaultEditPromptOverride: self.defaultEditPromptOverride
+        )
+    }
+
+    func restore(from payload: SettingsBackupPayload) {
+        self.restore(from: payload, promptProfiles: self.dictationPromptProfiles, appPromptBindings: self.appPromptBindings)
+    }
+
+    func restore(
+        from payload: SettingsBackupPayload,
+        promptProfiles: [DictationPromptProfile],
+        appPromptBindings: [AppPromptBinding]
+    ) {
+        self.savedProviders = payload.savedProviders
+        self.selectedProviderID = payload.selectedProviderID
+        self.selectedModelByProvider = payload.selectedModelByProvider
+        self.modelReasoningConfigs = payload.modelReasoningConfigs
+        self.selectedSpeechModel = payload.selectedSpeechModel
+        self.selectedCohereLanguage = payload.selectedCohereLanguage
+        self.hotkeyShortcut = payload.hotkeyShortcut
+        self.promptModeHotkeyShortcut = payload.promptModeHotkeyShortcut
+        self.promptModeShortcutEnabled = payload.promptModeShortcutEnabled
+        self.commandModeHotkeyShortcut = payload.commandModeHotkeyShortcut
+        self.commandModeShortcutEnabled = payload.commandModeShortcutEnabled
+        self.commandModeSelectedModel = payload.commandModeSelectedModel
+        self.commandModeSelectedProviderID = payload.commandModeSelectedProviderID
+        self.commandModeConfirmBeforeExecute = payload.commandModeConfirmBeforeExecute
+        self.commandModeLinkedToGlobal = payload.commandModeLinkedToGlobal
+        self.rewriteModeHotkeyShortcut = payload.rewriteModeHotkeyShortcut
+        self.rewriteModeShortcutEnabled = payload.rewriteModeShortcutEnabled
+        self.rewriteModeSelectedModel = payload.rewriteModeSelectedModel
+        self.rewriteModeSelectedProviderID = payload.rewriteModeSelectedProviderID
+        self.rewriteModeLinkedToGlobal = payload.rewriteModeLinkedToGlobal
+        self.cancelRecordingHotkeyShortcut = payload.cancelRecordingHotkeyShortcut
+        self.showThinkingTokens = payload.showThinkingTokens
+        self.hideFromDockAndAppSwitcher = payload.hideFromDockAndAppSwitcher
+        self.accentColorOption = payload.accentColorOption
+        self.transcriptionStartSound = payload.transcriptionStartSound
+        self.transcriptionSoundVolume = payload.transcriptionSoundVolume
+        self.transcriptionSoundIndependentVolume = payload.transcriptionSoundIndependentVolume
+        self.autoUpdateCheckEnabled = payload.autoUpdateCheckEnabled
+        self.betaReleasesEnabled = payload.betaReleasesEnabled
+        self.enableDebugLogs = payload.enableDebugLogs
+        self.shareAnonymousAnalytics = payload.shareAnonymousAnalytics
+        self.pressAndHoldMode = payload.pressAndHoldMode
+        self.enableStreamingPreview = payload.enableStreamingPreview
+        self.enableAIStreaming = payload.enableAIStreaming
+        self.copyTranscriptionToClipboard = payload.copyTranscriptionToClipboard
+        self.textInsertionMode = payload.textInsertionMode
+        self.preferredInputDeviceUID = payload.preferredInputDeviceUID
+        self.preferredOutputDeviceUID = payload.preferredOutputDeviceUID
+        self.visualizerNoiseThreshold = payload.visualizerNoiseThreshold
+        self.overlayPosition = payload.overlayPosition
+        self.overlayBottomOffset = payload.overlayBottomOffset
+        self.overlaySize = payload.overlaySize
+        self.transcriptionPreviewCharLimit = payload.transcriptionPreviewCharLimit
+        self.userTypingWPM = payload.userTypingWPM
+        self.saveTranscriptionHistory = payload.saveTranscriptionHistory
+        self.weekendsDontBreakStreak = payload.weekendsDontBreakStreak
+        self.fillerWords = payload.fillerWords
+        self.removeFillerWordsEnabled = payload.removeFillerWordsEnabled
+        self.gaavModeEnabled = payload.gaavModeEnabled
+        self.pauseMediaDuringTranscription = payload.pauseMediaDuringTranscription
+        self.vocabularyBoostingEnabled = payload.vocabularyBoostingEnabled
+        self.customDictionaryEntries = payload.customDictionaryEntries
+
+        self.dictationPromptProfiles = promptProfiles
+        self.appPromptBindings = appPromptBindings
+        self.selectedDictationPromptID = payload.selectedDictationPromptID
+        self.selectedEditPromptID = payload.selectedEditPromptID
+        self.defaultDictationPromptOverride = payload.defaultDictationPromptOverride
+        self.defaultEditPromptOverride = payload.defaultEditPromptOverride
+        self.promptModeSelectedPromptID = payload.promptModeSelectedPromptID
+        self.normalizePromptSelectionsIfNeeded()
     }
 
     // MARK: - Private Methods

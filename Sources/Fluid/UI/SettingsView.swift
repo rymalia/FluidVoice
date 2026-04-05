@@ -5,9 +5,11 @@
 //  App preferences and audio device settings
 //
 
+import AppKit
 import AVFoundation
 import PromiseKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject var appServices: AppServices
@@ -1215,6 +1217,12 @@ struct SettingsView: View {
                     .padding(16)
                 }
 
+                // Backup & Restore Card
+                ThemedCard(style: .standard) {
+                    self.backupUtilityRow()
+                        .padding(16)
+                }
+
                 // Debug Settings Card
                 ThemedCard(style: .standard) {
                     VStack(alignment: .leading, spacing: 14) {
@@ -1365,6 +1373,101 @@ struct SettingsView: View {
         NSWorkspace.shared.open(url)
     }
 
+    private func exportBackup() {
+        do {
+            let panel = NSSavePanel()
+            panel.canCreateDirectories = true
+            panel.allowedContentTypes = [.json]
+            panel.nameFieldStringValue = BackupService.shared.suggestedFilename()
+
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+
+            let document = BackupService.shared.makeBackupDocument()
+            let data = try BackupService.shared.encode(document)
+            try data.write(to: url, options: .atomic)
+
+            self.presentInfoAlert(
+                title: "Backup Exported",
+                message: "Saved your FluidVoice backup to:\n\(url.path)"
+            )
+        } catch {
+            self.presentErrorAlert(
+                title: "Backup Export Failed",
+                message: error.localizedDescription
+            )
+        }
+    }
+
+    private func importBackup() {
+        do {
+            let panel = NSOpenPanel()
+            panel.canChooseDirectories = false
+            panel.canChooseFiles = true
+            panel.allowsMultipleSelection = false
+            panel.allowedContentTypes = [.json]
+
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+
+            let data = try Data(contentsOf: url)
+            let document = try BackupService.shared.decode(data)
+
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+
+            let confirm = NSAlert()
+            confirm.messageText = "Import this backup?"
+            confirm.informativeText = """
+            This replaces your current settings, prompt profiles, and stats history.
+
+            Exported: \(formatter.string(from: document.exportedAt))
+            API keys are not included and will not be changed.
+            """
+            confirm.alertStyle = .warning
+            confirm.addButton(withTitle: "Import")
+            confirm.addButton(withTitle: "Cancel")
+
+            guard confirm.runModal() == .alertFirstButtonReturn else { return }
+
+            try BackupService.shared.restore(document)
+            self.syncLocalSettingsAfterBackupRestore()
+
+            self.presentInfoAlert(
+                title: "Backup Imported",
+                message: "Your settings, prompt profiles, and stats were restored successfully."
+            )
+        } catch {
+            self.presentErrorAlert(
+                title: "Backup Import Failed",
+                message: error.localizedDescription
+            )
+        }
+    }
+
+    private func syncLocalSettingsAfterBackupRestore() {
+        self.shareAnonymousAnalytics = SettingsStore.shared.shareAnonymousAnalytics
+        self.pendingAnalyticsValue = nil
+        self.showAreYouSureToStopAnalytics = false
+    }
+
+    private func presentInfoAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
+    private func presentErrorAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
     private func openPreviousBuildPicker() {
         Task { @MainActor in
             do {
@@ -1459,6 +1562,40 @@ struct SettingsView: View {
                 Text(errorMessage)
                     .font(.caption)
                     .foregroundStyle(self.theme.palette.warning)
+            }
+        }
+    }
+
+    private func backupUtilityRow() -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "externaldrive.fill")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .frame(width: 24, alignment: .center)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Backup & Restore")
+                    .font(.body)
+                Text("Export or import settings, prompt profiles, history, and stats. API keys excluded.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 16)
+
+            HStack(spacing: 8) {
+                Button(action: self.exportBackup) {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(self.theme.palette.accent)
+                .controlSize(.regular)
+
+                Button(action: self.importBackup) {
+                    Label("Import", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
             }
         }
     }

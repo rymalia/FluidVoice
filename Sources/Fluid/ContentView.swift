@@ -584,6 +584,9 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .openCustomDictionaryFromVoiceEngine)) { _ in
             self.selectedSidebarItem = .customDictionary
         }
+        .onReceive(NotificationCenter.default.publisher(for: .settingsBackupDidRestore)) { _ in
+            self.reloadSettingsStateAfterBackupRestore()
+        }
         .toolbar {
             if !self.settings.shouldShowOnboarding {
                 ToolbarItem(placement: .primaryAction) {
@@ -2860,6 +2863,63 @@ extension ContentView {
                 }
             }
         }
+    }
+}
+
+private extension ContentView {
+    func reloadSettingsStateAfterBackupRestore() {
+        self.hotkeyShortcut = SettingsStore.shared.hotkeyShortcut
+        self.promptModeHotkeyShortcut = SettingsStore.shared.promptModeHotkeyShortcut
+        self.commandModeHotkeyShortcut = SettingsStore.shared.commandModeHotkeyShortcut
+        self.rewriteModeHotkeyShortcut = SettingsStore.shared.rewriteModeHotkeyShortcut
+        self.cancelRecordingHotkeyShortcut = SettingsStore.shared.cancelRecordingHotkeyShortcut
+        self.isPromptModeShortcutEnabled = SettingsStore.shared.promptModeShortcutEnabled
+        self.isCommandModeShortcutEnabled = SettingsStore.shared.commandModeShortcutEnabled
+        self.isRewriteModeShortcutEnabled = SettingsStore.shared.rewriteModeShortcutEnabled
+        self.playgroundUsed = SettingsStore.shared.playgroundUsed
+        self.visualizerNoiseThreshold = SettingsStore.shared.visualizerNoiseThreshold
+        self.selectedInputUID = SettingsStore.shared.preferredInputDeviceUID ?? ""
+        self.selectedOutputUID = SettingsStore.shared.preferredOutputDeviceUID ?? ""
+        self.enableDebugLogs = SettingsStore.shared.enableDebugLogs
+        self.pressAndHoldModeEnabled = SettingsStore.shared.pressAndHoldMode
+        self.enableStreamingPreview = SettingsStore.shared.enableStreamingPreview
+        self.copyToClipboard = SettingsStore.shared.copyTranscriptionToClipboard
+        self.launchAtStartup = SettingsStore.shared.launchAtStartup
+        self.showInDock = SettingsStore.shared.showInDock
+        self.availableModelsByProvider = SettingsStore.shared.availableModelsByProvider
+        self.selectedModelByProvider = SettingsStore.shared.selectedModelByProvider
+        self.savedProviders = SettingsStore.shared.savedProviders
+        self.selectedProviderID = SettingsStore.shared.selectedProviderID
+
+        self.hotkeyManager?.updateShortcut(self.hotkeyShortcut)
+        self.hotkeyManager?.updatePromptModeShortcut(self.promptModeHotkeyShortcut)
+        self.hotkeyManager?.updatePromptModeShortcutEnabled(self.isPromptModeShortcutEnabled)
+        self.hotkeyManager?.updateCommandModeShortcut(self.commandModeHotkeyShortcut)
+        self.hotkeyManager?.updateCommandModeShortcutEnabled(self.isCommandModeShortcutEnabled)
+        self.hotkeyManager?.updateRewriteModeShortcut(self.rewriteModeHotkeyShortcut)
+        self.hotkeyManager?.updateRewriteModeShortcutEnabled(self.isRewriteModeShortcutEnabled)
+
+        self.currentProvider = self.providerKey(for: self.selectedProviderID)
+        if let saved = self.savedProviders.first(where: { $0.id == self.selectedProviderID }) {
+            self.availableModels = saved.models
+            self.openAIBaseURL = saved.baseURL
+        } else if let stored = self.availableModelsByProvider[self.currentProvider], !stored.isEmpty {
+            self.availableModels = stored
+            self.openAIBaseURL = ModelRepository.shared.defaultBaseURL(for: self.selectedProviderID)
+        } else {
+            self.availableModels = ModelRepository.shared.defaultModels(for: self.currentProvider)
+            self.openAIBaseURL = ModelRepository.shared.defaultBaseURL(for: self.selectedProviderID)
+        }
+
+        if let restoredSelectedModel = self.selectedModelByProvider[self.currentProvider],
+           self.availableModels.contains(restoredSelectedModel)
+        {
+            self.selectedModel = restoredSelectedModel
+        } else if let firstModel = self.availableModels.first {
+            self.selectedModel = firstModel
+        }
+
+        self.refreshDevices()
     }
 }
 
